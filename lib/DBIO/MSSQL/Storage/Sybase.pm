@@ -102,7 +102,7 @@ sub _get_server_version {
   }
 }
 
-=head2 connect_call_datetime_setup
+=method connect_call_datetime_setup
 
 Used as:
 
