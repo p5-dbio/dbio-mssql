@@ -1,5 +1,6 @@
 requires 'perl', '5.020';
 requires 'DBIO';
+requires 'DBIO::Sybase';
 requires 'DBI';
 requires 'namespace::clean';
 

@@ -30,6 +30,18 @@ __PACKAGE__->datetime_parser_type (
 
 __PACKAGE__->new_guid('NEWID()');
 
+=head1 DESCRIPTION
+
+Storage driver for Microsoft SQL Server databases. Handles identity column
+(autoincrement) retrieval via C<SCOPE_IDENTITY()>, proper C<MONEY> column
+casting on insert/update, ordered subselect safety checks, savepoint support,
+deferred foreign key checks via C<sp_msforeachtable>, and datetime parsing.
+
+The limit dialect (C<RowNumberOver> or C<Top>) is detected automatically from
+the server version. Uses L<DBIO::MSSQL::SQLMaker> for SQL generation.
+
+=cut
+
 sub _prep_for_execute {
   my $self = shift;
   my ($op, $ident, $args) = @_;
@@ -116,6 +128,13 @@ sub _execute {
 
 sub last_insert_id { shift->_identity }
 
+=method last_insert_id
+
+Returns the last identity value inserted, as retrieved by C<SCOPE_IDENTITY()>
+or the fallback C<_identity_method>.
+
+=cut
+
 #
 # MSSQL is retarded wrt ordered subselects. One needs to add a TOP
 # to *all* subqueries, but one also *can't* use TOP 100 PERCENT
@@ -164,6 +183,12 @@ sub _exec_svp_rollback {
 
 sub sqlt_type { 'SQLServer' }
 
+=method sqlt_type
+
+Returns C<SQLServer>, identifying this storage to L<SQL::Translator>.
+
+=cut
+
 sub _random_function { 'NEWID()' }
 
 sub sql_limit_dialect {
@@ -187,6 +212,13 @@ sub sql_limit_dialect {
 
   return $supports_rno ? 'RowNumberOver' : 'Top';
 }
+
+=method sql_limit_dialect
+
+Returns C<RowNumberOver> for SQL Server 2005 (version 9) and above, or
+C<Top> for earlier versions. Detected automatically from the server version.
+
+=cut
 
 sub _ping {
   my $self = shift;
@@ -229,6 +261,32 @@ sub with_deferred_fk_checks {
         $sg->dismiss;
     };
 }
+
+=method with_deferred_fk_checks
+
+    $storage->with_deferred_fk_checks(sub { ... });
+
+Runs the supplied coderef with all foreign key constraints disabled via
+C<sp_msforeachtable>. Constraints are re-enabled and explicitly verified
+afterwards, and the transaction is committed.
+
+=cut
+
+=head1 SEE ALSO
+
+=over
+
+=item * L<DBIO::MSSQL> - MSSQL schema component
+
+=item * L<DBIO::MSSQL::SQLMaker> - MSSQL SQL dialect
+
+=item * L<DBIO::MSSQL::Storage::Sybase> - MSSQL via L<DBD::Sybase>
+
+=item * L<DBIO::Storage::DBI> - Base DBI storage class
+
+=back
+
+=cut
 
 package DBIO::MSSQL::Storage::DateTime::Format;
 

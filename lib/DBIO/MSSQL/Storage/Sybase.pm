@@ -13,21 +13,17 @@ use mro 'c3';
 use DBIO::Carp;
 use namespace::clean;
 
-=head1 SYNOPSIS
-
-This subclass supports MSSQL server connections via L<DBD::Sybase>.
-
 =head1 DESCRIPTION
 
-This driver tries to determine whether your version of L<DBD::Sybase> and
-supporting libraries (usually FreeTDS) support using placeholders, if not the
-storage will be reblessed to
-L<DBIO::MSSQL::Storage::Sybase::NoBindVars>.
+Storage driver for Microsoft SQL Server accessed via L<DBD::Sybase>
+(including FreeTDS-based connections). Inherits from both
+L<DBIO::Sybase::Storage> and L<DBIO::MSSQL::Storage>.
 
-The MSSQL specific functionality is provided by
-L<DBIO::MSSQL::Storage>.
-
-=head1 METHODS
+On connect, the driver checks whether your L<DBD::Sybase> build supports
+placeholders. If not, the storage is reblessed to
+C<DBIO::MSSQL::Storage::Sybase::NoBindVars>. FreeTDS versions above 0.82
+have known statement-caching bugs; the driver detects these and disables
+statement caching automatically.
 
 =cut
 
@@ -138,6 +134,21 @@ sub connect_call_datetime_setup {
   }
 }
 
+=head1 SEE ALSO
+
+=over
+
+=item * L<DBIO::MSSQL> - MSSQL schema component
+
+=item * L<DBIO::MSSQL::Storage> - MSSQL storage base class
+
+=item * L<DBIO::Sybase::Storage> - Sybase storage base class
+
+=item * L<DBIO::Sybase::Storage::FreeTDS> - FreeTDS connection layer
+
+=back
+
+=cut
 
 package DBIO::MSSQL::Storage::Sybase::DateTime::Format;
 
