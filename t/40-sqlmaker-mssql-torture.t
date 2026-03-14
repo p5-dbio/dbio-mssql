@@ -1,13 +1,12 @@
 use strict;
 use warnings;
 use Test::More;
-use lib qw(t/lib);
-use DBICTest ':DiffSQL';
+use DBIO::Test ':DiffSQL';
 
 my $OFFSET = DBIO::SQLMaker::ClassicExtensions->__offset_bindtype;
 my $TOTAL  = DBIO::SQLMaker::ClassicExtensions->__total_bindtype;
 
-my $schema = DBICTest->init_schema (
+my $schema = DBIO::Test->init_schema (
   storage_type => 'DBIO::Storage::DBI::MSSQL',
   no_deploy => 1,
   quote_names => 1

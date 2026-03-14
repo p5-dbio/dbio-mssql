@@ -5,12 +5,11 @@ use Test::More;
 use Test::Exception;
 use Scalar::Util 'weaken';
 use DBIO::Optional::Dependencies ();
-use lib qw(t/lib);
-use DBICTest;
+use DBIO::Test;
 
-my ($dsn, $user, $pass) = @ENV{map { "DBICTEST_MSSQL_${_}" } qw/DSN USER PASS/};
+my ($dsn, $user, $pass) = @ENV{map { "DBIOTEST_MSSQL_${_}" } qw/DSN USER PASS/};
 
-plan skip_all => 'Set $ENV{DBICTEST_MSSQL_DSN}, _USER and _PASS to run this test'
+plan skip_all => 'Set $ENV{DBIOTEST_MSSQL_DSN}, _USER and _PASS to run this test'
   unless ($dsn);
 
 
@@ -18,13 +17,13 @@ plan skip_all => 'Test needs ' . DBIO::Optional::Dependencies->req_missing_for (
   unless DBIO::Optional::Dependencies->req_ok_for ('test_rdbms_mssql_sybase');
 
 {
-  my $srv_ver = DBICTest::Schema->connect($dsn, $user, $pass)->storage->_server_info->{dbms_version};
+  my $srv_ver = DBIO::Test::Schema->connect($dsn, $user, $pass)->storage->_server_info->{dbms_version};
   ok ($srv_ver, 'Got a test server version on fresh schema: ' . ($srv_ver||'???') );
 }
 
 my $schema;
 
-my $testdb_supports_placeholders = DBICTest::Schema->connect($dsn, $user, $pass)
+my $testdb_supports_placeholders = DBIO::Test::Schema->connect($dsn, $user, $pass)
                                                     ->storage
                                                      ->_supports_typeless_placeholders;
 my @test_storages = (
@@ -33,7 +32,7 @@ my @test_storages = (
 );
 
 for my $storage_type (@test_storages) {
-  $schema = DBICTest::Schema->connect($dsn, $user, $pass);
+  $schema = DBIO::Test::Schema->connect($dsn, $user, $pass);
 
   if ($storage_type =~ /NoBindVars\z/) {
     # since we want to use the nobindvar - disable the capability so the
@@ -41,7 +40,7 @@ for my $storage_type (@test_storages) {
     $schema->storage->_use_typeless_placeholders (0);
   }
 
-  local $ENV{DBIC_MSSQL_FREETDS_LOWVER_NOWARN} = 1; # disable nobindvars warning
+  local $ENV{DBIO_MSSQL_FREETDS_LOWVER_NOWARN} = 1; # disable nobindvars warning
 
   $schema->storage->ensure_connected;
 
@@ -272,7 +271,7 @@ SQL
   }
 
   {
-    my $schema = DBICTest::Schema->clone;
+    my $schema = DBIO::Test::Schema->clone;
     $schema->connection($dsn, $user, $pass);
 
     like $schema->storage->sql_maker->{limit_dialect},
@@ -284,7 +283,7 @@ SQL
 # test op-induced autoconnect
 lives_ok (sub {
 
-  my $schema =  DBICTest::Schema->clone;
+  my $schema =  DBIO::Test::Schema->clone;
   $schema->connection($dsn, $user, $pass);
 
   my $artist = $schema->resultset ('Artist')->search ({}, { order_by => 'artistid' })->next;
@@ -293,8 +292,8 @@ lives_ok (sub {
 
 # test AutoCommit=0
 {
-  local $ENV{DBIC_UNSAFE_AUTOCOMMIT_OK} = 1;
-  my $schema2 = DBICTest::Schema->connect($dsn, $user, $pass, { AutoCommit => 0 });
+  local $ENV{DBIO_UNSAFE_AUTOCOMMIT_OK} = 1;
+  my $schema2 = DBIO::Test::Schema->connect($dsn, $user, $pass, { AutoCommit => 0 });
 
   my $rs = $schema2->resultset('Money');
 

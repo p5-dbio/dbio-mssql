@@ -37,7 +37,7 @@ sub _rebless {
 
   return if ref $self ne __PACKAGE__;
   if (not $self->_use_typeless_placeholders) {
-    carp_once <<'EOF' unless $ENV{DBIC_MSSQL_FREETDS_LOWVER_NOWARN};
+    carp_once <<'EOF' unless $ENV{DBIO_MSSQL_FREETDS_LOWVER_NOWARN};
 Placeholders do not seem to be supported in your configuration of
 DBD::Sybase/FreeTDS.
 
@@ -47,7 +47,7 @@ statements is disabled.
 Make sure to configure your server with "tds version" of 8.0 or 7.0 in
 /etc/freetds/freetds.conf .
 
-To turn off this warning, set the DBIC_MSSQL_FREETDS_LOWVER_NOWARN environment
+To turn off this warning, set the DBIO_MSSQL_FREETDS_LOWVER_NOWARN environment
 variable.
 EOF
     require

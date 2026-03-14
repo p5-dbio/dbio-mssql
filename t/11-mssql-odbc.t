@@ -9,8 +9,7 @@ use DBIO::Optional::Dependencies ();
 plan skip_all => 'Test needs ' . DBIO::Optional::Dependencies->req_missing_for ('test_rdbms_mssql_odbc')
   unless DBIO::Optional::Dependencies->req_ok_for ('test_rdbms_mssql_odbc');
 
-use lib qw(../dbio/lib t/lib);
-use DBIOTest;
+use DBIO::Test;
 
 my ($dsn, $user, $pass) = @ENV{map { "DBIOTEST_MSSQL_ODBC_${_}" } qw/DSN USER PASS/};
 
@@ -18,12 +17,12 @@ plan skip_all => 'Set $ENV{DBIOTEST_MSSQL_ODBC_DSN}, _USER and _PASS to run this
   unless ($dsn && $user);
 
 {
-  my $srv_ver = DBIOTest::Schema->connect($dsn, $user, $pass)->storage->_server_info->{dbms_version};
+  my $srv_ver = DBIO::Test::Schema->connect($dsn, $user, $pass)->storage->_server_info->{dbms_version};
   ok ($srv_ver, 'Got a test server version on fresh schema: ' . ($srv_ver||'???') );
 }
 
-DBIOTest::Schema->load_classes('ArtistGUID');
-my $schema = DBIOTest::Schema->connect($dsn, $user, $pass);
+DBIO::Test::Schema->load_classes('ArtistGUID');
+my $schema = DBIO::Test::Schema->connect($dsn, $user, $pass);
 
 {
   no warnings 'redefine';
@@ -64,7 +63,7 @@ my %opts = (
 for my $opts_name (keys %opts) {
   SKIP: {
     my $opts = $opts{$opts_name}{opts};
-    $schema = DBIOTest::Schema->connect($dsn, $user, $pass, $opts);
+    $schema = DBIO::Test::Schema->connect($dsn, $user, $pass, $opts);
 
     try {
       $schema->storage->ensure_connected
@@ -168,7 +167,7 @@ SQL
 
       lives_ok ( sub {
         # start a new connection, make sure rebless works
-        my $schema = DBIOTest::Schema->connect($dsn, $user, $pass, $opts);
+        my $schema = DBIO::Test::Schema->connect($dsn, $user, $pass, $opts);
         $schema->populate ('Owners', [
           [qw/id  name  /],
           [qw/1   wiggle/],
@@ -193,7 +192,7 @@ SQL
       lives_ok (sub {
         # start a new connection, make sure rebless works
         # test an insert with a supplied identity, followed by one without
-        my $schema = DBIOTest::Schema->connect($dsn, $user, $pass, $opts);
+        my $schema = DBIO::Test::Schema->connect($dsn, $user, $pass, $opts);
         for (2, 1) {
           my $id = $_ * 20 ;
           $schema->resultset ('Owners')->create ({ id => $id, name => "troglodoogle $id" });
@@ -205,7 +204,7 @@ SQL
 
       lives_ok ( sub {
         # start a new connection, make sure rebless works
-        my $schema = DBIOTest::Schema->connect($dsn, $user, $pass, $opts);
+        my $schema = DBIO::Test::Schema->connect($dsn, $user, $pass, $opts);
         $schema->populate ('BooksInLibrary', [
           [qw/source  owner title   /],
           [qw/Library 1     secrets0/],
@@ -235,7 +234,7 @@ SQL
     ) {
       for my $quoted (0, 1) {
 
-        $schema = DBIOTest::Schema->connect($dsn, $user, $pass, {
+        $schema = DBIO::Test::Schema->connect($dsn, $user, $pass, {
             limit_dialect => $dialect,
             %$opts,
             $quoted
@@ -420,7 +419,7 @@ SQL
       });
 
       # start disconnected to make sure insert works on an un-reblessed storage
-      $schema = DBIOTest::Schema->connect($dsn, $user, $pass, $opts);
+      $schema = DBIO::Test::Schema->connect($dsn, $user, $pass, $opts);
 
       my $row;
       lives_ok {
