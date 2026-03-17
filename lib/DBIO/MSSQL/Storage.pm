@@ -191,34 +191,8 @@ Returns C<SQLServer>, identifying this storage to L<SQL::Translator>.
 
 sub _random_function { 'NEWID()' }
 
-sub sql_limit_dialect {
-  my $self = shift;
-
-  my $supports_rno = 0;
-
-  if (exists $self->_server_info->{normalized_dbms_version}) {
-    $supports_rno = 1 if $self->_server_info->{normalized_dbms_version} >= 9;
-  }
-  else {
-    # User is connecting via DBD::Sybase and has no permission to run
-    # stored procedures like xp_msver, or version detection failed for some
-    # other reason.
-    # So, we use a query to check if RNO is implemented.
-    try {
-      $self->_get_dbh->selectrow_array('SELECT row_number() OVER (ORDER BY rand())');
-      $supports_rno = 1;
-    };
-  }
-
-  return $supports_rno ? 'RowNumberOver' : 'Top';
-}
-
-=method sql_limit_dialect
-
-Returns C<RowNumberOver> for SQL Server 2005 (version 9) and above, or
-C<Top> for earlier versions. Detected automatically from the server version.
-
-=cut
+# TODO: MSSQL needs a SQLMaker with apply_limit that uses RowNumberOver
+# (>= 2005/v9) or Top (older) based on server version.
 
 sub _ping {
   my $self = shift;
