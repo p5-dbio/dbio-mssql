@@ -11,9 +11,9 @@ plan skip_all => 'Test needs ' . DBIO::Optional::Dependencies->req_missing_for (
 
 use DBIO::Test;
 
-my ($dsn, $user, $pass) = @ENV{map { "DBIOTEST_MSSQL_ODBC_${_}" } qw/DSN USER PASS/};
+my ($dsn, $user, $pass) = @ENV{map { "DBIO_TEST_MSSQL_ODBC_${_}" } qw/DSN USER PASS/};
 
-plan skip_all => 'Set $ENV{DBIOTEST_MSSQL_ODBC_DSN}, _USER and _PASS to run this test'
+plan skip_all => 'Set $ENV{DBIO_TEST_MSSQL_ODBC_DSN}, _USER and _PASS to run this test'
   unless ($dsn && $user);
 
 {

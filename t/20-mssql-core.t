@@ -7,9 +7,9 @@ use Scalar::Util 'weaken';
 use DBIO::Optional::Dependencies ();
 use DBIO::Test;
 
-my ($dsn, $user, $pass) = @ENV{map { "DBIOTEST_MSSQL_${_}" } qw/DSN USER PASS/};
+my ($dsn, $user, $pass) = @ENV{map { "DBIO_TEST_MSSQL_${_}" } qw/DSN USER PASS/};
 
-plan skip_all => 'Set $ENV{DBIOTEST_MSSQL_DSN}, _USER and _PASS to run this test'
+plan skip_all => 'Set $ENV{DBIO_TEST_MSSQL_DSN}, _USER and _PASS to run this test'
   unless ($dsn);
 
 

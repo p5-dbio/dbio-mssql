@@ -8,8 +8,8 @@ use Try::Tiny;
 use DBIO::Optional::Dependencies ();
 use DBIO::Test;
 
-my ($dsn,  $user,  $pass)  = @ENV{map { "DBIOTEST_MSSQL_ODBC_${_}" } qw/DSN USER PASS/};
-my ($dsn2, $user2, $pass2) = @ENV{map { "DBIOTEST_MSSQL_${_}" }      qw/DSN USER PASS/};
+my ($dsn,  $user,  $pass)  = @ENV{map { "DBIO_TEST_MSSQL_ODBC_${_}" } qw/DSN USER PASS/};
+my ($dsn2, $user2, $pass2) = @ENV{map { "DBIO_TEST_MSSQL_${_}" }      qw/DSN USER PASS/};
 
 plan skip_all => 'Test needs ' .
   (join ' and ', map { $_ ? $_ : () }
@@ -26,7 +26,7 @@ plan skip_all => 'Test needs ' .
 
 if (not ($dsn || $dsn2)) {
   plan skip_all =>
-    'Set $ENV{DBIOTEST_MSSQL_ODBC_DSN} and/or $ENV{DBIOTEST_MSSQL_DSN}'
+    'Set $ENV{DBIO_TEST_MSSQL_ODBC_DSN} and/or $ENV{DBIO_TEST_MSSQL_DSN}'
     .' _USER and _PASS to run this test' .
     "\nWarning: This test drops and creates tables called 'event_small_dt' and"
     ." 'track'.";
