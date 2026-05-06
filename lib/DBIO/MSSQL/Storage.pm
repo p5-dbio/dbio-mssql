@@ -30,6 +30,10 @@ __PACKAGE__->datetime_parser_type (
 
 __PACKAGE__->new_guid('NEWID()');
 
+sub dbio_deploy_class { 'DBIO::MSSQL::Deploy' }
+
+sub deploy_setup { }
+
 =head1 DESCRIPTION
 
 Storage driver for Microsoft SQL Server databases. Handles identity column
