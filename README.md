@@ -36,3 +36,7 @@ C<DBIO_TEST_MSSQL_ODBC_USER>, and C<DBIO_TEST_MSSQL_ODBC_PASS>.
 ## See Also
 
 L<DBIO::Introspect::Base>, L<DBIO::Diff::Base>
+
+## Repository
+
+L<https://github.com/p5-dbio/dbio-mssql>
