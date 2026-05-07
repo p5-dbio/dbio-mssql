@@ -5,6 +5,9 @@ our $VERSION = '0.900000';
 use strict;
 use warnings;
 
+use DBIO::SQL::Util qw(_quote_ident);
+use DBIO::MSSQL::DDL qw(_mssql_column_type);
+
 =head1 DESCRIPTION
 
 Table-level diff operations for MSSQL. Handles C<CREATE TABLE>, C<DROP TABLE>.
@@ -110,36 +113,5 @@ sub summary {
   return sprintf '%s table: %s', $prefix, $self->table_name;
 }
 
-sub _mssql_column_type {
-  my ($col) = @_;
-  my $type = $col->{data_type} || 'nvarchar';
-  my $size = $col->{size};
-
-  # Map common types
-  my %type_map = (
-    'integer' => 'int',
-    'tinyint' => 'tinyint',
-    'smallint' => 'smallint',
-    'bigint' => 'bigint',
-    'double precision' => 'float',
-    'boolean' => 'bit',
-  );
-
-  $type = $type_map{ lc $type } // $type;
-
-  # Handle size for varchar/nvarchar
-  if ($type =~ /varchar/i && defined $size && $size > 0) {
-    return "$type($size)";
-  }
-
-  return $type;
-}
-
-sub _quote_ident {
-  my ($name) = @_;
-  return $name if $name =~ /^[a-z_][a-z0-9_]*$/i;
-  $name =~ s/"/""/g;
-  return qq{"$name"};
-}
-
 1;
+__END__

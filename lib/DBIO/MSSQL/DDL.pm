@@ -5,6 +5,11 @@ our $VERSION = '0.900000';
 use strict;
 use warnings;
 
+use Exporter 'import';
+our @EXPORT_OK = qw(_mssql_column_type _quote_ident);
+
+use DBIO::SQL::Util qw(_quote_ident);
+
 =head1 DESCRIPTION
 
 C<DBIO::MSSQL::DDL> generates a MSSQL DDL script from a L<DBIO::Schema>
@@ -238,11 +243,5 @@ sub _mssql_column_type {
   return $type;
 }
 
-sub _quote_ident {
-  my ($name) = @_;
-  return $name if $name =~ /^[a-z_][a-z0-9_]*$/i;
-  $name =~ s/"/""/g;
-  return qq{"$name"};
-}
-
 1;
+__END__

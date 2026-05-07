@@ -6,6 +6,7 @@ use strict;
 use warnings;
 
 use DBI;
+use DBIO::SQL::Util qw(_split_statements);
 use DBIO::MSSQL::DDL;
 use DBIO::MSSQL::Introspect;
 use DBIO::MSSQL::Diff;
@@ -208,23 +209,6 @@ sub _temp_connect_info {
   }
 
   return ($dsn, $user, $pass);
-}
-
-sub _split_statements {
-  my ($sql) = @_;
-  my @stmts;
-  my $current = '';
-  for my $line (split /\n/, $sql) {
-    $current .= "$line\n";
-    if ($line =~ /;\s*$/) {
-      $current =~ s/^\s+|\s+$//g;
-      push @stmts, $current if $current =~ /\S/;
-      $current = '';
-    }
-  }
-  $current =~ s/^\s+|\s+$//g;
-  push @stmts, $current if $current =~ /\S/;
-  return @stmts;
 }
 
 =seealso
