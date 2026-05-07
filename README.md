@@ -1,33 +1,38 @@
-# DBIO-MSSQL
+# DBIO::MSSQL
 
-Microsoft SQL Server driver distribution for DBIO.
+Microsoft SQL Server database driver for DBIO (fork of DBIx::Class).
 
-## Scope
+## Supports
 
-- Provides MSSQL storage behavior: `DBIO::MSSQL::Storage`
-- Provides Sybase-based MSSQL connection: `DBIO::MSSQL::Storage::Sybase`
-- Provides MSSQL SQLMaker: `DBIO::MSSQL::SQLMaker`
-- Owns MSSQL-specific tests from the historical DBIx::Class monolithic test layout
+- desired-state deployment via test-deploy-and-compare (L<DBIO::MSSQL::Deploy>)
+- native introspection (L<DBIO::MSSQL::Introspect>)
+- native diff (L<DBIO::MSSQL::Diff>)
+- native DDL generation (L<DBIO::MSSQL::DDL>)
 
-## Migration Notes
+## Usage
 
-- `DBIx::Class::Storage::DBI::MSSQL` -> `DBIO::MSSQL::Storage`
-- `DBIx::Class::Storage::DBI::Sybase::Microsoft_SQL_Server` -> `DBIO::MSSQL::Storage::Sybase`
-- `DBIx::Class::SQLMaker::MSSQL` -> `DBIO::MSSQL::SQLMaker`
+    package MyApp::DB;
+    use base 'DBIO::Schema';
+    __PACKAGE__->load_components('MSSQL');
 
-When installed, DBIO core can autodetect MSSQL DSNs and load the storage
-class through `DBIO::Storage::DBI` driver registration.
+    my $schema = MyApp::DB->connect('dbi:MSSQL:database=myapp');
+
+## Requirements
+
+- Perl 5.36+
+- DBD::MSSQL or DBD::ODBC
+- DBIO core
 
 ## Testing
 
-Set environment variables for integration tests:
+    prove -l t/
 
-- `DBIO_TEST_MSSQL_DSN`
-- `DBIO_TEST_MSSQL_USER`
-- `DBIO_TEST_MSSQL_PASS`
+Requires a running MSSQL instance. Set C<DBIO_TEST_MSSQL_DSN>,
+C<DBIO_TEST_MSSQL_USER>, and C<DBIO_TEST_MSSQL_PASS>.
 
-For ODBC connections:
+For ODBC connections, set C<DBIO_TEST_MSSQL_ODBC_DSN>,
+C<DBIO_TEST_MSSQL_ODBC_USER>, and C<DBIO_TEST_MSSQL_ODBC_PASS>.
 
-- `DBIO_TEST_MSSQL_ODBC_DSN`
-- `DBIO_TEST_MSSQL_ODBC_USER`
-- `DBIO_TEST_MSSQL_ODBC_PASS`
+## See Also
+
+L<DBIO::Introspect::Base>, L<DBIO::Diff::Base>
