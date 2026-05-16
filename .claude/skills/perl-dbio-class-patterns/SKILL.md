@@ -1,1 +1,0 @@
-../../dbio/.claude/skills/perl-dbio-class-patterns/SKILL.md
