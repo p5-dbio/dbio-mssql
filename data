@@ -1,0 +1,15 @@
+---
+blocked: Need to verify whether skill changes are intentional
+claimed_at: 2026-05-28T15:33:03Z
+claimed_by: karr-coordinator
+class: standard
+created: 2026-05-28T15:32:53Z
+id: 1
+priority: medium
+started: 2026-05-28
+status: in-progress
+tags:
+- refactor
+title: Cleanup orphaned  declarations in DBIO::MSSQL
+updated: 2026-05-28T15:32:53Z
+---
