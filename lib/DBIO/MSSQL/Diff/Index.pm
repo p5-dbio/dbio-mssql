@@ -94,7 +94,7 @@ sub as_sql {
     my $kind_sql = $kind eq 'clustered' ? 'CLUSTERED' : $kind eq 'nonclustered' ? 'NONCLUSTERED' : '';
     my $cols = join ', ',
       map { _quote_ident($_) } @{ $self->index_info->{columns} // [] };
-    my $sql = sprintf 'CREATE %sINDEX %s ON %s %s%s (%s)',
+    my $sql = sprintf 'CREATE %sINDEX %s ON %s %s(%s)',
       $unique,
       _quote_ident($self->index_name),
       _quote_ident($self->table_name),

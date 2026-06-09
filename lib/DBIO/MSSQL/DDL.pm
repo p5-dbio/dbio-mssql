@@ -243,18 +243,17 @@ sub _mssql_column_type {
     smalldatetime => 'smalldatetime',
   );
 
-  my $mapped = $type_map{ lc $type };
-  return $mapped if $mapped;
+  my $mapped = $type_map{ lc $type } // $type;
 
-  # Handle size for varchar/nvarchar
-  if ($type =~ /varchar/i) {
+  # Append length to types that take one (char/varchar/binary families).
+  # MSSQL reports nvarchar(max)/varbinary(max) as size -1, so only emit a
+  # length for positive sizes.
+  if ($mapped =~ /^(?:n?char|n?varchar|binary|varbinary)$/i) {
     my $size = $info->{size};
-    if (defined $size && $size > 0) {
-      return "$type($size)";
-    }
+    return "$mapped($size)" if defined $size && $size > 0;
   }
 
-  return $type;
+  return $mapped;
 }
 
 1;
