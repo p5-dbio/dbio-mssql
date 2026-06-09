@@ -6,6 +6,7 @@ use warnings;
 
 use DBIO::SQL::Util qw(_quote_ident);
 use DBIO::MSSQL::DDL qw(_mssql_column_type);
+use DBIO::MSSQL::Diff::Util qw(is_same_column _norm_type);
 
 =head1 DESCRIPTION
 
@@ -51,13 +52,8 @@ sub diff {
       }
 
       my $src = $src_by_name{$col_name};
-      my $changed = 0;
-      $changed = 1 if _norm_type($src->{data_type}) ne _norm_type($tgt->{data_type});
-      $changed = 1 if ($src->{not_null} // 0) != ($tgt->{not_null} // 0);
-      $changed = 1 if (defined $src->{default_value} ? $src->{default_value} : '')
-                   ne (defined $tgt->{default_value} ? $tgt->{default_value} : '');
 
-      if ($changed) {
+      if (is_same_column($src, $tgt)) {   # returns changed-field list; non-empty = differs
         push @ops, $class->new(
           action      => 'alter',
           table_name  => $table_name,
@@ -80,12 +76,6 @@ sub diff {
   }
 
   return @ops;
-}
-
-sub _norm_type {
-  my $t = shift // '';
-  $t =~ s/\s+/ /g;
-  return uc $t;
 }
 
 =method as_sql

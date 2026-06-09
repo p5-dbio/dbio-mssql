@@ -5,6 +5,7 @@ use strict;
 use warnings;
 
 use DBIO::SQL::Util qw(_quote_ident);
+use DBIO::MSSQL::Diff::Util qw(is_same_index);
 
 =head1 DESCRIPTION
 
@@ -46,12 +47,8 @@ sub diff {
       }
 
       my $src = $src_idxs->{$name};
-      my $changed = 0;
-      $changed = 1 if ($src->{is_unique} // 0) != ($tgt->{is_unique} // 0);
-      $changed = 1 if join(',', @{ $src->{columns} // [] })
-                   ne join(',', @{ $tgt->{columns} // [] });
 
-      if ($changed) {
+      if (is_same_index($src, $tgt)) {   # returns changed-field list; non-empty = differs
         push @ops, $class->new(
           action => 'drop', table_name => $table_name,
           index_name => $name, index_info => $src,

@@ -5,6 +5,8 @@ use Test::More;
 use_ok 'DBIO::MSSQL::Diff::Table';
 use_ok 'DBIO::MSSQL::Diff::Column';
 use_ok 'DBIO::MSSQL::Diff::Index';
+use_ok 'DBIO::MSSQL::Diff::ForeignKey';
+use_ok 'DBIO::MSSQL::Diff::Util';
 use_ok 'DBIO::MSSQL::Diff';
 
 # --- Diff::Table create with columns + PK + FK + identity ---
@@ -179,6 +181,107 @@ use_ok 'DBIO::MSSQL::Diff';
   my $diff = DBIO::MSSQL::Diff->new(source => $model, target => $model);
   ok(!$diff->has_changes, 'no changes for identical empty models');
   is($diff->as_sql,  '', 'empty SQL');
+}
+
+# --- Diff::ForeignKey add (FK new on a table present in both models) ---
+{
+  my $src_t = { cd => { table_name => 'cd' }, artist => { table_name => 'artist' } };
+  my @ops = DBIO::MSSQL::Diff::ForeignKey->diff(
+    { cd => [] },
+    { cd => [ { constraint_name => 'FK_cd_artist', from_columns => ['artist_id'],
+               to_table => 'artist', to_columns => ['id'],
+               on_delete => 'CASCADE', on_update => 'NO ACTION' } ] },
+    $src_t, $src_t,
+  );
+  is(scalar @ops, 1, 'one add op');
+  is($ops[0]->action, 'add', 'add action');
+  is($ops[0]->as_sql,
+    'ALTER TABLE cd ADD CONSTRAINT FK_cd_artist FOREIGN KEY (artist_id) REFERENCES artist(id) ON DELETE CASCADE;',
+    'add FK SQL (NO ACTION update omitted)');
+  is($ops[0]->summary, '  +fk: FK_cd_artist on cd', 'add FK summary');
+}
+
+# --- Diff::ForeignKey drop ---
+{
+  my $t = { cd => { table_name => 'cd' } };
+  my @ops = DBIO::MSSQL::Diff::ForeignKey->diff(
+    { cd => [ { constraint_name => 'FK_old', from_columns => ['x'], to_table => 'y', to_columns => ['z'] } ] },
+    { cd => [] },
+    $t, $t,
+  );
+  is(scalar @ops, 1, 'one drop op');
+  is($ops[0]->action, 'drop', 'drop action');
+  is($ops[0]->as_sql, 'ALTER TABLE cd DROP CONSTRAINT FK_old;', 'drop FK SQL');
+}
+
+# --- Diff::ForeignKey modify (changed target table -> drop + add) ---
+{
+  my $t = { cd => { table_name => 'cd' } };
+  my @ops = DBIO::MSSQL::Diff::ForeignKey->diff(
+    { cd => [ { constraint_name => 'FK', from_columns => ['a'], to_table => 'old', to_columns => ['id'] } ] },
+    { cd => [ { constraint_name => 'FK', from_columns => ['a'], to_table => 'new', to_columns => ['id'] } ] },
+    $t, $t,
+  );
+  is(scalar @ops, 2, 'two ops (drop + add)');
+  is($ops[0]->action, 'drop', 'first is drop');
+  is($ops[1]->action, 'add',  'second is add');
+  like($ops[1]->as_sql, qr/REFERENCES new\(id\)/, 're-added against new table');
+}
+
+# --- Diff::ForeignKey: FK on a brand-new table is NOT emitted here
+#     (Diff::Table creates it inline) ---
+{
+  my @ops = DBIO::MSSQL::Diff::ForeignKey->diff(
+    {},
+    { fresh => [ { constraint_name => 'FK', from_columns => ['a'], to_table => 't', to_columns => ['id'] } ] },
+    {},                                  # source has no tables
+    { fresh => { table_name => 'fresh' } },
+  );
+  is(scalar @ops, 0, 'no standalone FK op for a brand-new table');
+}
+
+# --- Diff::Util sameness helpers ---
+{
+  ok(!DBIO::MSSQL::Diff::Util::is_same_column(
+    { data_type => 'int', not_null => 1 }, { data_type => 'int', not_null => 1 }),
+    'is_same_column: identical -> no changed fields');
+  my @c = DBIO::MSSQL::Diff::Util::is_same_column(
+    { data_type => 'int' }, { data_type => 'bigint' });
+  is_deeply(\@c, ['data_type'], 'is_same_column: type change reported');
+
+  ok(!DBIO::MSSQL::Diff::Util::is_same_index(
+    { is_unique => 1, columns => ['a','b'] }, { is_unique => 1, columns => ['a','b'] }),
+    'is_same_index: identical');
+  ok(scalar(DBIO::MSSQL::Diff::Util::is_same_index(
+    { columns => ['a','b'] }, { columns => ['b','a'] })),
+    'is_same_index: column order is significant');
+
+  ok(!DBIO::MSSQL::Diff::Util::is_same_fk(
+    { to_table => 't', from_columns => ['a'], to_columns => ['id'] },
+    { to_table => 't', from_columns => ['a'], to_columns => ['id'] }),
+    'is_same_fk: identical');
+  my @f = DBIO::MSSQL::Diff::Util::is_same_fk(
+    { to_table => 'a', from_columns => ['x'], to_columns => ['id'] },
+    { to_table => 'b', from_columns => ['x'], to_columns => ['id'] });
+  is_deeply(\@f, ['to_table'], 'is_same_fk: target table change reported');
+}
+
+# --- Full Diff orchestrator emits FK ops on an existing table ---
+{
+  my $source = {
+    tables  => { cd => { table_name => 'cd' }, artist => { table_name => 'artist' } },
+    columns => {}, indexes => {},
+    foreign_keys => { cd => [] },
+  };
+  my $target = {
+    tables  => { cd => { table_name => 'cd' }, artist => { table_name => 'artist' } },
+    columns => {}, indexes => {},
+    foreign_keys => { cd => [ { constraint_name => 'FK_cd_artist',
+      from_columns => ['artist_id'], to_table => 'artist', to_columns => ['id'] } ] },
+  };
+  my $diff = DBIO::MSSQL::Diff->new(source => $source, target => $target);
+  like($diff->as_sql, qr/ALTER TABLE cd ADD CONSTRAINT FK_cd_artist FOREIGN KEY/,
+    'orchestrator emits standalone FK add for existing table');
 }
 
 done_testing;

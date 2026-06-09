@@ -23,13 +23,16 @@ operations that can be rendered to SQL or a human-readable summary.
     }
 
 Operations are emitted in dependency order: tables, then columns, then
-indexes. Drops come last for each layer.
+indexes, then foreign keys. New-table FKs are created inline by
+L<DBIO::MSSQL::Diff::Table>; L<DBIO::MSSQL::Diff::ForeignKey> handles FK
+changes on tables present in both models. Drops come last for each layer.
 
 =cut
 
 use DBIO::MSSQL::Diff::Table;
 use DBIO::MSSQL::Diff::Column;
 use DBIO::MSSQL::Diff::Index;
+use DBIO::MSSQL::Diff::ForeignKey;
 
 sub _build_operations {
   my ($self) = @_;
@@ -45,6 +48,10 @@ sub _build_operations {
   );
   push @ops, DBIO::MSSQL::Diff::Index->diff(
     $self->source->{indexes}, $self->target->{indexes},
+  );
+  push @ops, DBIO::MSSQL::Diff::ForeignKey->diff(
+    $self->source->{foreign_keys}, $self->target->{foreign_keys},
+    $self->source->{tables},       $self->target->{tables},
   );
 
   return \@ops;
