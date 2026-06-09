@@ -176,9 +176,10 @@ sub _drop_temp_db {
 sub _connect_to_temp_db {
   my ($self, $temp_db) = @_;
   my ($dsn, $user, $pass) = $self->_temp_connect_info($temp_db);
-  return DBI->connect($dsn, $user, $pass, {
+  my $dbh = DBI->connect($dsn, $user, $pass, {
     RaiseError => 1, AutoCommit => 1,
   }) or die "Cannot connect to temp database: $DBI::errstr";
+  return $dbh;
 }
 
 sub _temp_connect_info {
