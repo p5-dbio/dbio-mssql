@@ -7,7 +7,7 @@ my $OFFSET = DBIO::SQLMaker::ClassicExtensions->__offset_bindtype;
 my $TOTAL  = DBIO::SQLMaker::ClassicExtensions->__total_bindtype;
 
 my $schema = DBIO::Test->init_schema (
-  storage_type => 'DBIO::Storage::DBI::MSSQL',
+  storage_type => 'DBIO::MSSQL::Storage',
   no_deploy => 1,
   quote_names => 1
 );

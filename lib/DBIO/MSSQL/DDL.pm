@@ -8,6 +8,10 @@ use Exporter 'import';
 our @EXPORT_OK = qw(_mssql_column_type _quote_ident);
 
 use DBIO::SQL::Util qw(_quote_ident);
+use DBIO::Schema::Type ();
+use DBIO::MSSQL::Adapter ();
+
+my $ADAPTER = DBIO::MSSQL::Adapter->new;
 
 =head1 DESCRIPTION
 
@@ -193,14 +197,25 @@ sub _mssql_column_type {
   my ($info) = @_;
   my $type = $info->{data_type} // 'nvarchar';
 
+  # Pre-parameterized types pass through (e.g. varchar(255), numeric(10,2)).
   return $type if $type =~ /\(.+\)$/;
 
+  # Portable base types: delegate to the adapter (single source of truth,
+  # shared shape with DBIO::MySQL / DBIO::PostgreSQL). Introspected live
+  # types arrive as dialect names (int, nvarchar, datetime, ...) which are
+  # not base-type names, so they fall through to the alias map below.
+  if (DBIO::Schema::Type::is_base_type(lc $type)) {
+    my $canon = eval { DBIO::Schema::Type::canonical_column('_', $info) };
+    return $ADAPTER->to_native($canon) if $canon;
+  }
+
+  # Dialect / alias names only (the eight base-type names are handled
+  # above). Maps legacy and cross-engine spellings to MSSQL natives.
   my %type_map = (
     # integers
     tinyint   => 'tinyint',
     smallint  => 'smallint',
     int       => 'int',
-    integer   => 'int',
     bigint    => 'bigint',
     serial    => 'int',
     bigserial => 'bigint',
@@ -208,24 +223,18 @@ sub _mssql_column_type {
     # floats / decimals
     real              => 'real',
     float             => 'float',
-    double            => 'float',
     'double precision'=> 'float',
-    numeric           => 'numeric',
     decimal           => 'numeric',
 
     # strings
-    text       => 'text',
     string     => 'nvarchar',
     varchar    => 'nvarchar',
-    char       => 'nchar',
     ntext      => 'ntext',
 
     # booleans
-    boolean => 'bit',
     bool    => 'bit',
 
     # blobs
-    blob       => 'varbinary',
     bytea      => 'varbinary',
     tinyblob   => 'varbinary',
     mediumblob => 'varbinary',
@@ -237,7 +246,6 @@ sub _mssql_column_type {
     date        => 'date',
     time        => 'time',
     datetime    => 'datetime',
-    timestamp   => 'datetime',
     timestamptz => 'datetimeoffset',
     'timestamp with time zone' => 'datetimeoffset',
     smalldatetime => 'smalldatetime',
