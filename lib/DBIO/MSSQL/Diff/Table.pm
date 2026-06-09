@@ -4,6 +4,8 @@ package DBIO::MSSQL::Diff::Table;
 use strict;
 use warnings;
 
+use base 'DBIO::Diff::Op';
+
 use DBIO::SQL::Util qw(_quote_ident);
 use DBIO::MSSQL::DDL qw(_mssql_column_type);
 
@@ -11,17 +13,12 @@ use DBIO::MSSQL::DDL qw(_mssql_column_type);
 
 Table-level diff operations for MSSQL. Handles C<CREATE TABLE>, C<DROP TABLE>.
 C<create> ops capture the target columns and foreign keys so C<as_sql> can emit
-the full inline definition.
+the full inline definition. Built on L<DBIO::Diff::Op> (the C<create>/C<drop>
+walk and accessor/summary plumbing).
 
 =cut
 
-sub new { my ($class, %args) = @_; bless \%args, $class }
-
-sub action       { $_[0]->{action} }
-sub table_name   { $_[0]->{table_name} }
-sub table_info   { $_[0]->{table_info} }
-sub columns      { $_[0]->{columns} }
-sub foreign_keys { $_[0]->{foreign_keys} }
+__PACKAGE__->mk_diff_accessors(qw/table_name table_info columns foreign_keys/);
 
 =method diff
 
@@ -32,29 +29,26 @@ sub diff {
   $target_columns //= {};
   $target_fks     //= {};
 
-  my @ops;
-
-  for my $name (sort keys %$target) {
-    next if exists $source->{$name};
-    push @ops, $class->new(
-      action       => 'create',
-      table_name   => $name,
-      table_info   => $target->{$name},
-      columns      => $target_columns->{$name} // [],
-      foreign_keys => $target_fks->{$name}     // [],
-    );
-  }
-
-  for my $name (sort keys %$source) {
-    next if exists $target->{$name};
-    push @ops, $class->new(
-      action     => 'drop',
-      table_name => $name,
-      table_info => $source->{$name},
-    );
-  }
-
-  return @ops;
+  return $class->diff_toplevel($source, $target,
+    create => sub {
+      my ($name) = @_;
+      $class->new(
+        action       => 'create',
+        table_name   => $name,
+        table_info   => $target->{$name},
+        columns      => $target_columns->{$name} // [],
+        foreign_keys => $target_fks->{$name}     // [],
+      );
+    },
+    drop => sub {
+      my ($name) = @_;
+      $class->new(
+        action     => 'drop',
+        table_name => $name,
+        table_info => $source->{$name},
+      );
+    },
+  );
 }
 
 =method as_sql
@@ -108,8 +102,7 @@ sub as_sql {
 
 sub summary {
   my ($self) = @_;
-  my $prefix = $self->action eq 'create' ? '+' : '-';
-  return sprintf '%s table: %s', $prefix, $self->table_name;
+  return sprintf '%s table: %s', $self->summary_prefix, $self->table_name;
 }
 
 1;

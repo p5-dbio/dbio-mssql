@@ -4,27 +4,25 @@ package DBIO::MSSQL::Diff::ForeignKey;
 use strict;
 use warnings;
 
+use base 'DBIO::Diff::Op';
+
 use DBIO::SQL::Util qw(_quote_ident);
-use DBIO::MSSQL::Diff::Util qw(is_same_fk);
+use DBIO::Diff::Compare qw(changed_fields);
 
 =head1 DESCRIPTION
 
 Represents a foreign key diff operation: C<ADD CONSTRAINT> or
 C<DROP CONSTRAINT>. FKs on a brand-new table are created inline by
 L<DBIO::MSSQL::Diff::Table>; this module handles FK changes on tables that
-exist in both source and target.
+exist in both source and target. Built on L<DBIO::Diff::Op>.
 
 FK identity is by C<constraint_name>. MSSQL has no C<ALTER> for a foreign
-key, so a definition change becomes a drop-then-add pair.
+key, so a definition change becomes a drop-then-add pair. Local and remote
+column lists are order-significant, so they are compared as C<dim> fields.
 
 =cut
 
-sub new { my ($class, %args) = @_; bless \%args, $class }
-
-sub action          { $_[0]->{action} }
-sub table_name      { $_[0]->{table_name} }
-sub constraint_name { $_[0]->{constraint_name} }
-sub fk_info         { $_[0]->{fk_info} }
+__PACKAGE__->mk_diff_accessors(qw/table_name constraint_name fk_info/);
 
 =method diff
 
@@ -36,48 +34,35 @@ sub fk_info         { $_[0]->{fk_info} }
 
 sub diff {
   my ($class, $source, $target, $source_tables, $target_tables) = @_;
-  my @ops;
 
-  for my $table_name (sort keys %$target) {
-    next unless exists $source_tables->{$table_name}
-             && exists $target_tables->{$table_name};
-
-    my %src = map { $_->{constraint_name} => $_ } @{ $source->{$table_name} // [] };
-    my %tgt = map { $_->{constraint_name} => $_ } @{ $target->{$table_name} // [] };
-
-    for my $name (sort keys %tgt) {
-      my $t = $tgt{$name};
-      if (!exists $src{$name}) {
-        push @ops, $class->new(
-          action          => 'add',
-          table_name      => $table_name,
-          constraint_name => $name,
-          fk_info         => $t,
-        );
-        next;
-      }
-      my $s = $src{$name};
-      if (is_same_fk($s, $t)) {
-        push @ops,
-          $class->new(action => 'drop', table_name => $table_name,
-            constraint_name => $name, fk_info => $s),
-          $class->new(action => 'add',  table_name => $table_name,
-            constraint_name => $name, fk_info => $t);
-      }
-    }
-
-    for my $name (sort keys %src) {
-      next if exists $tgt{$name};
-      push @ops, $class->new(
-        action          => 'drop',
-        table_name      => $table_name,
-        constraint_name => $name,
-        fk_info         => $src{$name},
-      );
-    }
-  }
-
-  return @ops;
+  return $class->diff_nested($source, $target,
+    index_by      => 'constraint_name',
+    scope         => 'both',
+    source_tables => $source_tables,
+    target_tables => $target_tables,
+    changed_when  => sub {
+      scalar changed_fields($_[0], $_[1],
+        scalar => ['to_table', 'on_delete', 'on_update'],
+        dim     => ['from_columns', 'to_columns']);
+    },
+    on_new => sub {
+      my ($table, $name, $new) = @_;
+      $class->new(action => 'add', table_name => $table,
+        constraint_name => $name, fk_info => $new);
+    },
+    on_changed => sub {
+      my ($table, $name, $old, $new) = @_;
+      ($class->new(action => 'drop', table_name => $table,
+         constraint_name => $name, fk_info => $old),
+       $class->new(action => 'add', table_name => $table,
+         constraint_name => $name, fk_info => $new));
+    },
+    on_gone => sub {
+      my ($table, $name, $old) = @_;
+      $class->new(action => 'drop', table_name => $table,
+        constraint_name => $name, fk_info => $old);
+    },
+  );
 }
 
 =method as_sql
@@ -111,8 +96,8 @@ sub as_sql {
 
 sub summary {
   my ($self) = @_;
-  my $prefix = $self->action eq 'add' ? '+' : '-';
-  return sprintf '  %sfk: %s on %s', $prefix, $self->constraint_name, $self->table_name;
+  return sprintf '  %sfk: %s on %s',
+    $self->summary_prefix, $self->constraint_name, $self->table_name;
 }
 
 1;

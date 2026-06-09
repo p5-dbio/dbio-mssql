@@ -4,8 +4,8 @@ package DBIO::MSSQL::Deploy;
 use strict;
 use warnings;
 
-use DBI;
-use DBIO::SQL::Util qw(_split_statements);
+use base 'DBIO::Deploy::Base::TempDatabase';
+
 use DBIO::MSSQL::DDL;
 use DBIO::MSSQL::Introspect;
 use DBIO::MSSQL::Diff;
@@ -15,19 +15,12 @@ use DBIO::MSSQL::Diff;
 C<DBIO::MSSQL::Deploy> orchestrates schema deployment and upgrades for
 Microsoft SQL Server using the test-deploy-and-compare strategy.
 
-For upgrades it:
-
-=over 4
-
-=item 1. Introspects the live database via C<INFORMATION_SCHEMA>
-
-=item 2. Deploys the desired schema (from DBIO classes) into a temp DB
-
-=item 3. Introspects the temp database the same way
-
-=item 4. Computes the diff between the two models using L<DBIO::MSSQL::Diff>
-
-=back
+The orchestration (C<install>, C<diff>, C<apply>, C<upgrade>) and the
+temp-database lifecycle are inherited from
+L<DBIO::Deploy::Base::TempDatabase>: C<diff> introspects the live database,
+deploys the desired DDL into a throwaway database, introspects that, and
+diffs the two models. This class supplies only the MSSQL-specific seams: the
+three class-name hooks and the C<CREATE>/C<DROP DATABASE> dialect.
 
     my $deploy = DBIO::MSSQL::Deploy->new(
         schema => MyApp::DB->connect($dsn),
@@ -39,148 +32,50 @@ For upgrades it:
 
 =cut
 
-sub new {
-  my ($class, %args) = @_;
-  bless \%args, $class;
-}
+sub _ddl_class        { 'DBIO::MSSQL::DDL' }
+sub _introspect_class { 'DBIO::MSSQL::Introspect' }
+sub _diff_class       { 'DBIO::MSSQL::Diff' }
 
-sub schema { $_[0]->{schema} }
+=method _create_temp_db
 
-=attr schema
+    my $name = $self->_create_temp_db($dbh);
 
-A connected L<DBIO::Schema> instance using the L<DBIO::MSSQL> component.
-Required.
-
-=cut
-
-=method install
-
-    $deploy->install;
-
-Generates DDL via L<DBIO::MSSQL::DDL/install_ddl> and executes each
-statement against the connected database. Suitable for fresh installs.
+Creates a uniquely-named throwaway database with T-SQL C<CREATE DATABASE>.
+MSSQL cannot run C<CREATE DATABASE> inside a transaction, so any open
+transaction is committed and the statement runs with autocommit on.
 
 =cut
-
-sub install {
-  my ($self) = @_;
-  my $ddl = DBIO::MSSQL::DDL->install_ddl($self->schema);
-  my $dbh = $self->_dbh;
-  for my $stmt (_split_statements($ddl)) {
-    $dbh->do($stmt);
-  }
-  return 1;
-}
-
-=method diff
-
-    my $diff = $deploy->diff;
-
-Computes the difference between the live database and the desired state.
-Spins up a temporary MSSQL database, deploys the desired schema there,
-introspects both, and returns a L<DBIO::MSSQL::Diff> object.
-
-=cut
-
-sub diff {
-  my ($self) = @_;
-
-  my $source_model = DBIO::MSSQL::Introspect->new(dbh => $self->_dbh)->model;
-
-  my $temp_db = $self->_create_temp_db;
-  my $temp_dbh = $self->_connect_to_temp_db($temp_db);
-
-  eval {
-    my $ddl = DBIO::MSSQL::DDL->install_ddl($self->schema);
-    for my $stmt (_split_statements($ddl)) {
-      $temp_dbh->do($stmt);
-    }
-  };
-  my $deploy_err = $@;
-
-  my $target_model;
-  unless ($deploy_err) {
-    eval {
-      $target_model = DBIO::MSSQL::Introspect->new(dbh => $temp_dbh)->model;
-    };
-    $deploy_err = $@ unless $target_model;
-  }
-
-  $temp_dbh->disconnect;
-  $self->_drop_temp_db($temp_db);
-
-  die $deploy_err if $deploy_err;
-
-  return DBIO::MSSQL::Diff->new(
-    source => $source_model,
-    target => $target_model,
-  );
-}
-
-=method apply
-
-    $deploy->apply($diff);
-
-Applies a L<DBIO::MSSQL::Diff> object by executing each statement from
-C<< $diff->as_sql >>. No-op if the diff has no changes.
-
-=cut
-
-sub apply {
-  my ($self, $diff) = @_;
-  return unless $diff->has_changes;
-  my $dbh = $self->_dbh;
-  for my $stmt (_split_statements($diff->as_sql)) {
-    next if $stmt =~ /^\s*--/;
-    $dbh->do($stmt);
-  }
-  return 1;
-}
-
-=method upgrade
-
-    my $diff = $deploy->upgrade;
-
-Convenience: calls L</diff> then L</apply>. Returns the diff object if
-changes were applied, or C<undef> if the database was already up to date.
-
-=cut
-
-sub upgrade {
-  my ($self) = @_;
-  my $diff = $self->diff;
-  return unless $diff->has_changes;
-  $self->apply($diff);
-  return $diff;
-}
-
-sub _dbh { $_[0]->schema->storage->dbh }
 
 sub _create_temp_db {
-  my ($self) = @_;
-  my $name = '_dbio_tmp_' . $$ . '_' . time();
-  my $dbh = $self->_dbh;
-  $dbh->do("COMMIT") if $dbh->{AutoCommit} == 0;
+  my ($self, $dbh) = @_;
+  my $name = $self->temp_db_prefix . $$ . '_' . time();
+  $dbh->do("COMMIT") if defined $dbh->{AutoCommit} && $dbh->{AutoCommit} == 0;
   local $dbh->{AutoCommit} = 1;
   $dbh->do("CREATE DATABASE $name");
   return $name;
 }
 
+=method _drop_temp_db
+
+    $self->_drop_temp_db($dbh, $name);
+
+Drops the throwaway database with T-SQL C<DROP DATABASE>.
+
+=cut
+
 sub _drop_temp_db {
-  my ($self, $name) = @_;
-  my $dbh = $self->_dbh;
+  my ($self, $dbh, $name) = @_;
   local $dbh->{AutoCommit} = 1;
   $dbh->do("DROP DATABASE $name");
 }
 
-sub _connect_to_temp_db {
-  my ($self, $temp_db) = @_;
-  my ($dsn, $user, $pass) = $self->_temp_connect_info($temp_db);
-  my $dbh = DBI->connect($dsn, $user, $pass, {
-    RaiseError => 1, AutoCommit => 1,
-  }) or die "Cannot connect to temp database: $DBI::errstr";
-  return $dbh;
-}
+=method _temp_connect_info
+
+Overrides the base derivation: MSSQL DSNs use the C<Database=> attribute, so
+both the rewrite and the append-when-absent case emit C<Database=> (the base
+default appends C<dbname=>, which an ODBC/Sybase MSSQL DSN does not honour).
+
+=cut
 
 sub _temp_connect_info {
   my ($self, $temp_db) = @_;
@@ -198,12 +93,11 @@ sub _temp_connect_info {
   }
 
   if (ref $dsn eq 'CODE') {
-    die "DBIO::MSSQL::Deploy does not support coderef DSN for temp database connections";
+    die ref($self) . ' does not support coderef DSN for temp database connections';
   }
 
-  # Replace database name in DSN
-  if ($dsn =~ /Database=/i || $dsn =~ /dbname=/i) {
-    $dsn =~ s/(Database|dbname)=[^;]*/Database=$temp_db/i;
+  if ($dsn =~ /(?:Database|dbname)=/i) {
+    $dsn =~ s/(?:Database|dbname)=[^;]*/Database=$temp_db/i;
   } else {
     $dsn .= ";Database=$temp_db";
   }
@@ -214,6 +108,8 @@ sub _temp_connect_info {
 =seealso
 
 =over
+
+=item * L<DBIO::Deploy::Base::TempDatabase> - shared temp-database orchestration
 
 =item * L<DBIO::MSSQL> - schema component
 

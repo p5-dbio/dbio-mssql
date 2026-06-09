@@ -4,22 +4,23 @@ package DBIO::MSSQL::Diff::Index;
 use strict;
 use warnings;
 
+use base 'DBIO::Diff::Op';
+
 use DBIO::SQL::Util qw(_quote_ident);
-use DBIO::MSSQL::Diff::Util qw(is_same_index);
+use DBIO::Diff::Compare qw(changed_fields);
 
 =head1 DESCRIPTION
 
 Index-level diff operations for MSSQL. MSSQL supports C<CREATE INDEX>,
-C<DROP INDEX>, and C<CREATE INDEX ... DROP_EXISTING>.
+C<DROP INDEX>, and C<CREATE INDEX ... DROP_EXISTING>. Built on
+L<DBIO::Diff::Op> (the nested walk). A definition change is a drop-then-
+create pair. Index column I<order> is significant, so the column list is
+compared as an order-preserving C<dim> field (not the order-independent
+default of L<DBIO::Diff::Compare/is_same_index>).
 
 =cut
 
-sub new { my ($class, %args) = @_; bless \%args, $class }
-
-sub action     { $_[0]->{action} }
-sub table_name { $_[0]->{table_name} }
-sub index_name { $_[0]->{index_name} }
-sub index_info { $_[0]->{index_info} }
+__PACKAGE__->mk_diff_accessors(qw/table_name index_name index_info/);
 
 =method diff
 
@@ -27,55 +28,33 @@ sub index_info { $_[0]->{index_info} }
 
 sub diff {
   my ($class, $source, $target) = @_;
-  my @ops;
 
-  for my $table_name (sort keys %$target) {
-    my $src_idxs = $source->{$table_name} // {};
-    my $tgt_idxs = $target->{$table_name};
+  my $create = sub {
+    my ($table, $name, $info) = @_;
+    $class->new(action => 'create', table_name => $table,
+      index_name => $name, index_info => $info);
+  };
+  my $drop = sub {
+    my ($table, $name, $info) = @_;
+    $class->new(action => 'drop', table_name => $table,
+      index_name => $name, index_info => $info);
+  };
 
-    for my $name (sort keys %$tgt_idxs) {
-      my $tgt = $tgt_idxs->{$name};
-
-      if (!exists $src_idxs->{$name}) {
-        push @ops, $class->new(
-          action     => 'create',
-          table_name => $table_name,
-          index_name => $name,
-          index_info => $tgt,
-        );
-        next;
-      }
-
-      my $src = $src_idxs->{$name};
-
-      if (is_same_index($src, $tgt)) {   # returns changed-field list; non-empty = differs
-        push @ops, $class->new(
-          action => 'drop', table_name => $table_name,
-          index_name => $name, index_info => $src,
-        );
-        push @ops, $class->new(
-          action => 'create', table_name => $table_name,
-          index_name => $name, index_info => $tgt,
-        );
-      }
-    }
-  }
-
-  for my $table_name (sort keys %$source) {
-    my $src_idxs = $source->{$table_name};
-    my $tgt_idxs = $target->{$table_name} // {};
-    for my $name (sort keys %$src_idxs) {
-      next if exists $tgt_idxs->{$name};
-      push @ops, $class->new(
-        action     => 'drop',
-        table_name => $table_name,
-        index_name => $name,
-        index_info => $src_idxs->{$name},
-      );
-    }
-  }
-
-  return @ops;
+  # scope 'all': indexes are diffed for every target table (including
+  # brand-new ones, whose standalone indexes are not created inline by the
+  # table op) plus a trailing drop pass for source-only tables.
+  return $class->diff_nested($source, $target,
+    scope        => 'all',
+    changed_when => sub {
+      scalar changed_fields($_[0], $_[1], bool => ['is_unique'], dim => ['columns']);
+    },
+    on_new     => sub { $create->(@_) },
+    on_changed => sub {
+      my ($table, $name, $old, $new) = @_;
+      ($drop->($table, $name, $old), $create->($table, $name, $new));
+    },
+    on_gone    => sub { $drop->(@_) },
+  );
 }
 
 =method as_sql
@@ -108,8 +87,8 @@ sub as_sql {
 
 sub summary {
   my ($self) = @_;
-  my $prefix = $self->action eq 'create' ? '+' : '-';
-  return sprintf '  %sindex: %s on %s', $prefix, $self->index_name, $self->table_name;
+  return sprintf '  %sindex: %s on %s',
+    $self->summary_prefix, $self->index_name, $self->table_name;
 }
 
 1;

@@ -4,24 +4,22 @@ package DBIO::MSSQL::Diff::Column;
 use strict;
 use warnings;
 
+use base 'DBIO::Diff::Op';
+
 use DBIO::SQL::Util qw(_quote_ident);
 use DBIO::MSSQL::DDL qw(_mssql_column_type);
-use DBIO::MSSQL::Diff::Util qw(is_same_column _norm_type);
+use DBIO::Diff::Compare qw(is_same_column norm_type);
 
 =head1 DESCRIPTION
 
 Column-level diff operations for MSSQL. MSSQL supports C<ALTER TABLE ADD/DROP COLUMN>,
-C<ALTER COLUMN> for type/nullability/default changes.
+C<ALTER COLUMN> for type/nullability/default changes. Built on
+L<DBIO::Diff::Op> (the nested create/change/drop walk) and
+L<DBIO::Diff::Compare> (the C<is_same_column> sameness predicate).
 
 =cut
 
-sub new { my ($class, %args) = @_; bless \%args, $class }
-
-sub action      { $_[0]->{action} }
-sub table_name  { $_[0]->{table_name} }
-sub column_name { $_[0]->{column_name} }
-sub old_info    { $_[0]->{old_info} }
-sub new_info    { $_[0]->{new_info} }
+__PACKAGE__->mk_diff_accessors(qw/table_name column_name old_info new_info/);
 
 =method diff
 
@@ -29,53 +27,27 @@ sub new_info    { $_[0]->{new_info} }
 
 sub diff {
   my ($class, $source_cols, $target_cols, $source_tables, $target_tables) = @_;
-  my @ops;
 
-  for my $table_name (sort keys %$target_cols) {
-    next unless exists $source_tables->{$table_name}
-             && exists $target_tables->{$table_name};
-
-    my %src_by_name = map { $_->{column_name} => $_ } @{ $source_cols->{$table_name} // [] };
-    my %tgt_by_name = map { $_->{column_name} => $_ } @{ $target_cols->{$table_name} // [] };
-
-    for my $col_name (sort keys %tgt_by_name) {
-      my $tgt = $tgt_by_name{$col_name};
-
-      if (!exists $src_by_name{$col_name}) {
-        push @ops, $class->new(
-          action      => 'add',
-          table_name  => $table_name,
-          column_name => $col_name,
-          new_info    => $tgt,
-        );
-        next;
-      }
-
-      my $src = $src_by_name{$col_name};
-
-      if (is_same_column($src, $tgt)) {   # returns changed-field list; non-empty = differs
-        push @ops, $class->new(
-          action      => 'alter',
-          table_name  => $table_name,
-          column_name => $col_name,
-          old_info    => $src,
-          new_info    => $tgt,
-        );
-      }
-    }
-
-    for my $col_name (sort keys %src_by_name) {
-      next if exists $tgt_by_name{$col_name};
-      push @ops, $class->new(
-        action      => 'drop',
-        table_name  => $table_name,
-        column_name => $col_name,
-        old_info    => $src_by_name{$col_name},
-      );
-    }
-  }
-
-  return @ops;
+  return $class->diff_nested($source_cols, $target_cols,
+    index_by      => 'column_name',
+    scope         => 'both',
+    source_tables => $source_tables,
+    target_tables => $target_tables,
+    changed_when  => sub { scalar is_same_column($_[0], $_[1]) },
+    on_new => sub {
+      my ($table, $name, $new) = @_;
+      $class->new(action => 'add', table_name => $table, column_name => $name, new_info => $new);
+    },
+    on_changed => sub {
+      my ($table, $name, $old, $new) = @_;
+      $class->new(action => 'alter', table_name => $table, column_name => $name,
+        old_info => $old, new_info => $new);
+    },
+    on_gone => sub {
+      my ($table, $name, $old) = @_;
+      $class->new(action => 'drop', table_name => $table, column_name => $name, old_info => $old);
+    },
+  );
 }
 
 =method as_sql
@@ -108,7 +80,7 @@ sub as_sql {
     my $new = $self->new_info;
     my @stmts;
 
-    if (_norm_type($old->{data_type}) ne _norm_type($new->{data_type})) {
+    if (norm_type($old->{data_type}) ne norm_type($new->{data_type})) {
       push @stmts, sprintf 'ALTER TABLE %s ALTER COLUMN %s %s;',
         $tbl, $col, _mssql_column_type($new);
     }
@@ -134,9 +106,9 @@ sub as_sql {
 
 sub summary {
   my ($self) = @_;
-  my $prefix = $self->action eq 'add' ? '+' : $self->action eq 'drop' ? '-' : '~';
-  my $type = $self->new_info ? " ($self->{new_info}{data_type})" : '';
-  return sprintf '  %scolumn: %s.%s%s', $prefix, $self->table_name, $self->column_name, $type;
+  my $type = $self->new_info ? ' (' . $self->new_info->{data_type} . ')' : '';
+  return sprintf '  %scolumn: %s.%s%s',
+    $self->summary_prefix, $self->table_name, $self->column_name, $type;
 }
 
 1;

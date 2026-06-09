@@ -6,7 +6,6 @@ use_ok 'DBIO::MSSQL::Diff::Table';
 use_ok 'DBIO::MSSQL::Diff::Column';
 use_ok 'DBIO::MSSQL::Diff::Index';
 use_ok 'DBIO::MSSQL::Diff::ForeignKey';
-use_ok 'DBIO::MSSQL::Diff::Util';
 use_ok 'DBIO::MSSQL::Diff';
 
 # --- Diff::Table create with columns + PK + FK + identity ---
@@ -240,30 +239,15 @@ use_ok 'DBIO::MSSQL::Diff';
   is(scalar @ops, 0, 'no standalone FK op for a brand-new table');
 }
 
-# --- Diff::Util sameness helpers ---
+# --- Index column order is significant (drop+create on reorder) ---
 {
-  ok(!DBIO::MSSQL::Diff::Util::is_same_column(
-    { data_type => 'int', not_null => 1 }, { data_type => 'int', not_null => 1 }),
-    'is_same_column: identical -> no changed fields');
-  my @c = DBIO::MSSQL::Diff::Util::is_same_column(
-    { data_type => 'int' }, { data_type => 'bigint' });
-  is_deeply(\@c, ['data_type'], 'is_same_column: type change reported');
-
-  ok(!DBIO::MSSQL::Diff::Util::is_same_index(
-    { is_unique => 1, columns => ['a','b'] }, { is_unique => 1, columns => ['a','b'] }),
-    'is_same_index: identical');
-  ok(scalar(DBIO::MSSQL::Diff::Util::is_same_index(
-    { columns => ['a','b'] }, { columns => ['b','a'] })),
-    'is_same_index: column order is significant');
-
-  ok(!DBIO::MSSQL::Diff::Util::is_same_fk(
-    { to_table => 't', from_columns => ['a'], to_columns => ['id'] },
-    { to_table => 't', from_columns => ['a'], to_columns => ['id'] }),
-    'is_same_fk: identical');
-  my @f = DBIO::MSSQL::Diff::Util::is_same_fk(
-    { to_table => 'a', from_columns => ['x'], to_columns => ['id'] },
-    { to_table => 'b', from_columns => ['x'], to_columns => ['id'] });
-  is_deeply(\@f, ['to_table'], 'is_same_fk: target table change reported');
+  my @ops = DBIO::MSSQL::Diff::Index->diff(
+    { t => { idx => { is_unique => 0, columns => ['a', 'b'] } } },
+    { t => { idx => { is_unique => 0, columns => ['b', 'a'] } } },
+  );
+  is(scalar @ops, 2, 'reordered composite index -> drop + create');
+  is($ops[0]->action, 'drop',   'first is drop');
+  is($ops[1]->action, 'create', 'second is create');
 }
 
 # --- Full Diff orchestrator emits FK ops on an existing table ---

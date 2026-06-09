@@ -50,6 +50,7 @@ sub fetch {
       is_pk         => 0,
       pk_position   => 0,
       is_identity   => 0,
+      is_auto_increment => 0,
       size         => $row->{character_maximum_length},
     };
   }
@@ -92,6 +93,7 @@ sub fetch {
     for my $col (@$list) {
       if ($col->{column_name} eq $row->{column_name}) {
         $col->{is_identity} = 1;
+        $col->{is_auto_increment} = 1;
         last;
       }
     }

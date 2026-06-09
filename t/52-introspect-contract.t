@@ -17,29 +17,32 @@ my $model = {
   columns => {
     artist => [
       { column_name => 'artistid', data_type => 'int', not_null => 1,
-        default_value => undef, is_pk => 1, pk_position => 1, is_identity => 1, size => undef },
+        default_value => undef, is_pk => 1, pk_position => 1,
+        is_identity => 1, is_auto_increment => 1, size => undef },
       { column_name => 'name', data_type => 'nvarchar', not_null => 1,
-        default_value => "'Unknown'", is_pk => 0, pk_position => 0, is_identity => 0, size => 128 },
+        default_value => "'Unknown'", is_pk => 0, pk_position => 0,
+        is_identity => 0, is_auto_increment => 0, size => 128 },
     ],
     cd => [
       { column_name => 'cdid', data_type => 'int', not_null => 1,
-        is_pk => 1, pk_position => 1, is_identity => 1, size => undef },
+        is_pk => 1, pk_position => 1, is_identity => 1, is_auto_increment => 1, size => undef },
       { column_name => 'artistid', data_type => 'int', not_null => 1,
-        is_pk => 0, pk_position => 0, is_identity => 0, size => undef },
+        is_pk => 0, pk_position => 0, is_identity => 0, is_auto_increment => 0, size => undef },
       { column_name => 'title', data_type => 'nvarchar', not_null => 0,
-        is_pk => 0, pk_position => 0, is_identity => 0, size => 256 },
+        is_pk => 0, pk_position => 0, is_identity => 0, is_auto_increment => 0, size => 256 },
     ],
     artist_list => [
       { column_name => 'artistid', data_type => 'int', not_null => 1,
-        is_pk => 0, pk_position => 0, is_identity => 0, size => undef },
+        is_pk => 0, pk_position => 0, is_identity => 0, is_auto_increment => 0, size => undef },
     ],
   },
   indexes => {
+    # DBIO::MSSQL::Introspect::Indexes filters out PK-backed indexes
+    # (is_primary_key = 0), so the model never carries the PK index and
+    # table_uniq_info cannot double-report the primary key.
     artist => {
-      # PK-backed unique index: must NOT surface as a unique constraint
-      PK_artist      => { is_unique => 1, columns => ['artistid'], kind => 'clustered' },
-      uq_artist_name => { is_unique => 1, columns => ['name'],     kind => 'nonclustered' },
-      ix_artist_name => { is_unique => 0, columns => ['name'],     kind => 'nonclustered' },
+      uq_artist_name => { is_unique => 1, columns => ['name'], kind => 'nonclustered' },
+      ix_artist_name => { is_unique => 0, columns => ['name'], kind => 'nonclustered' },
     },
   },
   foreign_keys => {
@@ -63,9 +66,9 @@ is_deeply($intro->table_columns('nope'), [], 'table_columns unknown key -> []');
 # --- table_columns_info ---
 my $ci = $intro->table_columns_info('artist');
 is_deeply($ci->{artistid}, {
-  data_type => 'int', size => undef, is_nullable => 0,
+  data_type => 'int', is_nullable => 0,
   default_value => undef, is_auto_increment => 1,
-}, 'columns_info: identity column');
+}, 'columns_info: identity column (size omitted when undef)');
 is_deeply($ci->{name}, {
   data_type => 'nvarchar', size => 128, is_nullable => 0,
   default_value => "'Unknown'", is_auto_increment => 0,
@@ -79,7 +82,7 @@ is_deeply($intro->table_pk_info('cd'),     ['cdid'],     'pk_info cd');
 is_deeply(
   $intro->table_uniq_info('artist'),
   [ [ 'uq_artist_name' => ['name'] ] ],
-  'uniq_info: only the real unique constraint, PK and plain index excluded',
+  'uniq_info: the unique index reported, non-unique index excluded',
 );
 is_deeply($intro->table_uniq_info('cd'), [], 'uniq_info: none for cd');
 
