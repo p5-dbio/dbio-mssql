@@ -1,5 +1,5 @@
 ---
-name: perl-release-dbio
+name: dbio-perl-release
 description: "Load when dist.ini contains [@DBIO] — DBIO bundle options, version strategy, PodWeaver conventions, dzil release workflow"
 user-invocable: false
 allowed-tools: Read, Grep, Glob

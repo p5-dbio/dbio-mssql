@@ -77,6 +77,70 @@ ResultSet chaining: `$schema->resultset('User')->search({active=>1})->search({ro
 
 Each: Artist + CD, has_many/belongs_to, one custom + one default ResultSet.
 
+## AccessBroker
+
+AccessBroker provides connection credential management and routing. Pass a broker to `Schema->connect($broker)` instead of raw DSN.
+
+```perl
+use DBIO::AccessBroker::Static;
+
+my $broker = DBIO::AccessBroker::Static->new(
+  host     => 'localhost',
+  dbname   => 'myapp',
+  user     => 'myapp',
+  password => 'secret',
+);
+
+my $schema = MyApp::Schema->connect($broker);
+```
+
+### Interface
+
+All brokers must implement:
+
+| Method | Returns | Purpose |
+|--------|---------|---------|
+| `connect_info_for($mode)` | HASHREF | `{host, port, dbname, user, password, dbi_attrs}` |
+| `connect_info_for_storage($storage, $mode)` | HASHREF | Storage-aware version |
+| `needs_refresh` | Bool | True if credentials need rotation |
+| `refresh` | - | Perform credential rotation |
+| `has_read_write_routing` | Bool | True if routes reads/writes differently |
+| `has_rotating_credentials` | Bool | True if credentials rotate |
+| `is_transaction_safe` | Bool | False if routing or rotating (default) |
+
+### Implemented Brokers
+
+| Broker | File | Use Case |
+|--------|------|----------|
+| `DBIO::AccessBroker::Static` | Static.pm | Single DSN, transaction-safe |
+| `DBIO::AccessBroker::ReadWrite` | ReadWrite.pm | Read replica pool, round-robin |
+| `DBIO::AccessBroker::Vault` | Vault.pm | TTL-based credential rotation |
+| `DBIO::AccessBroker::Credentials` | Credentials.pm | Role-based routing, CredentialsProvider |
+
+### Storage Integration
+
+Storage detects broker via `_is_access_broker_connect_info([$broker])` → true if single blessed element. Then:
+
+1. `set_access_broker($broker, 'write')` — attaches broker to storage
+2. `_current_dbi_connect_info($mode)` → `current_access_broker_connect_info($mode)`
+3. `current_connect_info_for_storage($storage, $mode)` → `connect_info_for($mode)` (or storage-aware variant)
+4. Broker returns HASHREF → Storage normalizes to internal format
+
+### Credential Data Object
+
+`DBIO::AccessBroker::Credential` holds a single credential set:
+
+```perl
+my $cred = DBIO::AccessBroker::Credential->new(
+  host     => 'localhost',
+  dbname   => 'myapp',
+  user     => 'myapp',
+  password => 'secret',
+  role     => 'write',  # default
+);
+$cred->as_hashref;  # {host, port, dbname, user, password, role}
+```
+
 ## OOP
 
 - Core: `Class::Accessor::Grouped` + `Class::C3::Componentised`

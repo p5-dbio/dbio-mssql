@@ -26,3 +26,7 @@
 .claude/statsig/
 .claude/todos/
 .claude/projects/
+
+# karr local runtime state (board lives in refs/karr/*)
+.karr.log
+.karr.state
