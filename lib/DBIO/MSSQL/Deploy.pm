@@ -1,6 +1,5 @@
 package DBIO::MSSQL::Deploy;
 # ABSTRACT: Deploy and upgrade MSSQL schemas via test-deploy-and-compare
-our $VERSION = '0.900000';
 
 use strict;
 use warnings;

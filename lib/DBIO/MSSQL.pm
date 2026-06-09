@@ -1,4 +1,7 @@
 package DBIO::MSSQL;
+our $VERSION = '0.900000';
+
+
 # ABSTRACT: Microsoft SQL Server-specific schema management for DBIO
 
 use strict;

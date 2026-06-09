@@ -1,6 +1,5 @@
 package DBIO::MSSQL::Diff::Column;
 # ABSTRACT: Diff operations for MSSQL columns
-our $VERSION = '0.900000';
 
 use strict;
 use warnings;

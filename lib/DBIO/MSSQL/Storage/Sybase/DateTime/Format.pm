@@ -4,7 +4,6 @@ package DBIO::MSSQL::Storage::Sybase::DateTime::Format;
 use strict;
 use warnings;
 
-our $VERSION = '0.001';
 
 my $datetime_parse_format  = '%Y-%m-%dT%H:%M:%S.%3NZ';
 my $datetime_format_format = '%Y-%m-%d %H:%M:%S.%3N'; # %F %T

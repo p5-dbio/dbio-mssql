@@ -1,6 +1,5 @@
 package DBIO::MSSQL::Diff::Index;
 # ABSTRACT: Diff operations for MSSQL indexes
-our $VERSION = '0.900000';
 
 use strict;
 use warnings;

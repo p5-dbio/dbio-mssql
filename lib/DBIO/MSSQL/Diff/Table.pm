@@ -1,6 +1,5 @@
 package DBIO::MSSQL::Diff::Table;
 # ABSTRACT: Diff operations for MSSQL tables
-our $VERSION = '0.900000';
 
 use strict;
 use warnings;

@@ -1,6 +1,5 @@
 package DBIO::MSSQL::Introspect::Columns;
 # ABSTRACT: Introspect MSSQL columns
-our $VERSION = '0.900000';
 
 use strict;
 use warnings;

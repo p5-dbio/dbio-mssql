@@ -1,6 +1,5 @@
 package DBIO::MSSQL::Introspect::Indexes;
 # ABSTRACT: Introspect MSSQL indexes
-our $VERSION = '0.900000';
 
 use strict;
 use warnings;

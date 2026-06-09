@@ -1,6 +1,5 @@
 package DBIO::MSSQL::Introspect::Tables;
 # ABSTRACT: Introspect MSSQL tables and views
-our $VERSION = '0.900000';
 
 use strict;
 use warnings;

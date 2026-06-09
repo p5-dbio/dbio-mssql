@@ -1,6 +1,5 @@
 package DBIO::MSSQL::Diff;
 # ABSTRACT: Compare two introspected MSSQL models
-our $VERSION = '0.900000';
 
 use strict;
 use warnings;

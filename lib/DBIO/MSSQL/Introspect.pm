@@ -1,6 +1,5 @@
 package DBIO::MSSQL::Introspect;
 # ABSTRACT: Introspect a Microsoft SQL Server database via information_schema
-our $VERSION = '0.900000';
 
 use strict;
 use warnings;

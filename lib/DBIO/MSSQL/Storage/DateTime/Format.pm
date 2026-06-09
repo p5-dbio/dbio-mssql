@@ -4,7 +4,6 @@ package DBIO::MSSQL::Storage::DateTime::Format;
 use strict;
 use warnings;
 
-our $VERSION = '0.001';
 
 my $datetime_format      = '%Y-%m-%d %H:%M:%S.%3N'; # %F %T
 my $smalldatetime_format = '%Y-%m-%d %H:%M:%S';
