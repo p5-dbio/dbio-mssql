@@ -1,0 +1,28 @@
+---
+class: standard
+completed: 2026-06-10
+created: 2026-06-10T01:59:38Z
+id: 3
+priority: medium
+status: done
+title: Install DBD::Sybase so t/10-mssql.t and t/20-mssql-core.t can run
+updated: 2026-06-10T01:59:38Z
+---
+
+CLOSED 2026-06-10: this ticket was misplaced.
+
+DBD::Sybase is not a dbio-mssql concern. The cpanfile declaration belongs
+in dbio-sybase (karr #7 on dbio-sybase board). Once that lands, running
+  cpanm --installdeps .
+from dbio-mssql will pull DBD::Sybase in transitively via
+  dbio-mssql -> DBIO::Sybase -> DBD::Sybase
+
+At that point t/10 + t/20 can be re-enabled by un-skipping their
+plan skip_all blocks. (Or, if those tests turn out to be better-homed
+in dbio-sybase, delete them from dbio-mssql — separate decision.)
+
+Install path documented in dbio-sybase #7:
+  apt install freetds-dev
+  SYBASE=/usr cpanm DBD::Sybase
+
+Co-Authored-By: MiniMax-M3 <model@minimax.io>
