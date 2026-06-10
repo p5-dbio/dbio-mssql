@@ -67,6 +67,19 @@ MSSQL forbids `ORDER BY` in subqueries without `TOP`. `_select_args_to_query` in
 
 `IDENTITY(1,1)` syntax. `last_insert_id` via `SCOPE_IDENTITY()` appended to INSERT, with `_identity_method` fallback.
 
+**UNIQUEIDENTIFIER (GUID) columns that look like auto-increment are NOT real IDENTITY
+columns** — they're populated by `NEWID()` via `DBIO::Storage::DBI::UniqueIdentifier::_prefetch_autovalues`.
+`_prep_for_execute` inspects `data_type` for `uniqueidentifier`/`guid` and locally
+suppresses `_autoinc_supplied_for_op` so the parent `IdentityInsert` wrapper is
+skipped. Otherwise MSSQL rejects `SET IDENTITY_INSERT` with
+"Table '...' does not have the identity property". The trailing
+`SELECT SCOPE_IDENTITY()` is also skipped for GUID-typed autoinc (no real
+IDENTITY column to retrieve from).
+
+Note: non-PK GUID columns need `auto_nextval => 1` in the schema
+(NOT `is_auto_increment => 1`) for `_prefetch_autovalues` to populate them.
+PK GUIDs are populated unconditionally.
+
 ### Bulk Operations
 
 No native bulk INSERT in DBIO. Use `OUTPUT` clause or direct `BULK INSERT` via `$dbh->do`.
@@ -84,5 +97,43 @@ sub deploy_setup { }   # no-op stub
 
 Offline tests use `DBIO::Test::Storage`. Integration tests require:
 ```bash
-DBIO_TEST_MSSQL_DSN=dbi:ODBC:...
+DBIO_TEST_MSSQL_ODBC_DSN='dbi:ODBC:DSN=mssql-dev'   # DBD::ODBC + FreeTDS
+DBIO_TEST_MSSQL_DSN='dbi:Sybase:...'                 # DBD::Sybase (t/10, t/20)
+DBIO_TEST_MSSQL_ODBC_USER=sa
+DBIO_TEST_MSSQL_ODBC_PASS='...'
 ```
+
+`t/10-mssql.t` and `t/20-mssql-core.t` need DBD::Sybase (DBD::ODBC+FreeTDS won't
+work for those). DBD::Sybase is not installed by default; track via the
+`dbio-mssql` karr ticket on DBD::Sybase install.
+
+### Rebless target
+
+DBIO core's `DBIO::Storage::DBI::ODBC->_rebless` calls
+`_determine_connector_driver('ODBC')`, which looks up `SQL_DBMS_NAME` in the
+default connector registry. For MSSQL the registry maps
+`Microsoft_SQL_Server` -> `DBIO::MSSQL::Storage::Sybase`. So both DBD::ODBC
+and DBD::Sybase connections end up reblessed to `DBIO::MSSQL::Storage::Sybase`
+on first connect.
+
+### `on_connect_call` options
+
+`t/11` + `t/21` ship with `on_connect_call` options for
+`use_dynamic_cursors` / `use_mars` / `use_server_cursors` (DBD::Sybase
+specific). When running against DBD::ODBC+FreeTDS the test pre-skips these
+with a `can("connect_call_$_")` check and `last SKIP` to abort the iteration
+cleanly (otherwise the iteration continues to `dbh_do` and exits 255).
+
+### Live test status (2026-06-09, MSSQL 2022 in k3s `mssql-dev`)
+
+| Test | Result | Notes |
+|------|--------|-------|
+| t/00-load.t | PASS | offline |
+| t/40-sqlmaker-mssql-torture.t | PASS | offline |
+| t/50-diff.t | PASS | offline |
+| t/52-introspect-contract.t | PASS | offline |
+| t/11-mssql-odbc.t | 124/125 | GUID `auto_nextval` fail (dbio core ArtistGUID fix via karr #1) |
+| t/21-mssql-odbc-core.t | 124/125 | same |
+| t/30-datetime-mssql.t | FAIL | `DBIO::Test::Schema::EventSmallDT` missing (dbio core port via karr #2) |
+| t/10-mssql.t | SKIP | needs DBD::Sybase |
+| t/20-mssql-core.t | SKIP | needs DBD::Sybase |
