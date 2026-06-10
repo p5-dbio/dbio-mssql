@@ -1,0 +1,43 @@
+---
+class: standard
+completed: 2026-06-10
+created: 2026-06-10T01:51:38Z
+id: 1
+priority: medium
+status: done
+title: DBIO::Test::Schema::ArtistGUID a_guid column uses wrong attribute for non-PK
+  GUID auto-population
+updated: 2026-06-10T01:51:38Z
+---
+
+[task]
+title: DBIO::Test::Schema::ArtistGUID a_guid column uses wrong attribute for non-PK GUID auto-population
+description: 
+The ported ArtistGUID schema in dbio core has the wrong attribute on the non-PK `a_guid` column. It uses `is_auto_increment => 1` but should use `auto_nextval => 1`.
+
+Background:
+- `DBIO::Storage::DBI::UniqueIdentifier::_prefetch_autovalues` only triggers on `auto_nextval => 1` for non-PK GUID columns (see the `@auto_guids` grep at line 85-91 of UniqueIdentifier.pm)
+- The PK column `artistid` is handled by a separate code path (`@pk_guids`) that does NOT need any flag
+- The test in dbio-mssql t/11-mssql-odbc.t (and presumably t/10, t/20, t/21) expects a non-PK `a_guid` to be auto-populated with a NEWID() value
+
+Current (wrong) schema at lib/DBIO/Test/Schema/ArtistGUID.pm lines 27-32:
+  a_guid => {
+    data_type => 'uniqueidentifier',
+    is_nullable => 1,
+    is_auto_increment => 1,
+  },
+
+The test (t/11-mssql-odbc.t line 453-457) checks that the row's `a_guid` is populated:
+  ok(
+    eval { $row->a_guid },
+    'row has a GUID col with auto_nextval populated',
+  );
+
+This is failing because `is_auto_increment` is not checked by UniqueIdentifier's prefetch logic for non-PK columns.
+
+Fix: change `is_auto_increment => 1` to `auto_nextval => 1` on line 30 of lib/DBIO/Test/Schema/ArtistGUID.pm.
+
+Cross-reference: the upstream MigrationsTest/Schema/ArtistGUID.pm in dbio/t/lib/ uses `auto_nextval => 1` for `a_guid` (see comment: "auto_nextval not necessary for PK" / "necessary here, because not a PK").
+
+Context: This was discovered while running live integration tests against MSSQL 2022 in k3s (dbio-mssql t/11-mssql-odbc.t). 121/123 tests pass after the dbio-mssql Storage.pm fix and test fixes, but test 113 fails because of this schema attribute mismatch.
+Resolved upstream in dbio core ticket #20, commit 31064788 (2026-06-10): a_guid now auto_nextval => 1, matching upstream MigrationsTest schema. Core dzil-installed locally — re-run t/11-mssql-odbc.t (test 113) to verify.
