@@ -3,6 +3,7 @@ use warnings;
 
 use Test::More;
 use Test::Exception;
+use Test::Warn;
 use Try::Tiny;
 
 use DBIO::Optional::Dependencies ();
@@ -35,7 +36,7 @@ my $schema = DBIO::Test::Schema->connect($dsn, $user, $pass);
   is( $connect_count, 1, 'only one connection made');
 }
 
-isa_ok( $schema->storage, 'DBIO::Storage::DBI::ODBC::Microsoft_SQL_Server' );
+isa_ok( $schema->storage, 'DBIO::MSSQL::Storage::Sybase' );
 
 {
   my $schema2 = $schema->connect (@{$schema->storage->connect_info});
@@ -65,6 +66,21 @@ for my $opts_name (keys %opts) {
     my $opts = $opts{$opts_name}{opts};
     $schema = DBIO::Test::Schema->connect($dsn, $user, $pass, $opts);
 
+    # DBD::Sybase-specific connect_call_* methods don't exist on
+    # DBD::ODBC+FreeTDS, so skip opts that reference them. The plain
+    # config has no on_connect_call and is always run.
+    if (
+      $opts->{on_connect_call}
+        and
+      not $schema->storage->can("connect_call_$opts->{on_connect_call}")
+    ) {
+      skip
+        "on_connect_call option '$opts_name' not supported by this driver",
+        1
+      ;
+      last SKIP;
+    }
+
     try {
       $schema->storage->ensure_connected
     }
@@ -77,6 +93,9 @@ for my $opts_name (keys %opts) {
           "on_connect_call option '$opts_name' not functional in this configuration: $_",
           1
         ;
+        # skip the rest of the iteration - on_connect_call won't work
+        # for the rest of the operations either (dbh_do, etc.)
+        last SKIP;
       }
     };
 

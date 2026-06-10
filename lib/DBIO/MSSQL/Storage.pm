@@ -84,7 +84,35 @@ sub _prep_for_execute {
     }
   }
 
-  my ($sql, $bind) = $self->next::method (@_);
+  # UNIQUEIDENTIFIER columns that look like is_auto_increment are
+  # actually populated by NEWID() (see DBIO::Storage::DBI::UniqueIdentifier
+  # _prefetch_autovalues) - they are NOT real IDENTITY columns. Suppress
+  # the SET IDENTITY_INSERT wrapper the parent IdentityInsert would emit
+  # for any autoinc column with a value, otherwise MSSQL complains that
+  # the table has no IDENTITY property.
+  my $suppress_identity_insert = 0;
+  if ($op eq 'insert' and $self->_autoinc_supplied_for_op) {
+    my $colinfo = $ident->columns_info;
+    my $is_guid_autoinc = 0;
+    for my $col (keys %$colinfo) {
+      next unless $colinfo->{$col}{is_auto_increment};
+      my $dt = $colinfo->{$col}{data_type} || '';
+      if ($dt =~ /^(?:uniqueidentifier(?:str)?|guid)\z/i) {
+        $is_guid_autoinc = 1;
+        last;
+      }
+    }
+    $suppress_identity_insert = 1 if $is_guid_autoinc;
+  }
+
+  my ($sql, $bind);
+  if ($suppress_identity_insert) {
+    local $self->{_autoinc_supplied_for_op} = 0;
+    ($sql, $bind) = $self->next::method(@_);
+  }
+  else {
+    ($sql, $bind) = $self->next::method(@_);
+  }
 
   # SELECT SCOPE_IDENTITY only works within a statement scope. We
   # must try to always use this particular idiom first, as it is the
@@ -94,7 +122,13 @@ sub _prep_for_execute {
   # point we don't have many guarantees we will get what we expected.
   # http://msdn.microsoft.com/en-us/library/ms190315.aspx
   # http://davidhayden.com/blog/dave/archive/2006/01/17/2736.aspx
-  if ($self->_perform_autoinc_retrieval and not $self->_no_scope_identity_query) {
+  if (
+    $self->_perform_autoinc_retrieval
+      and
+    not $self->_no_scope_identity_query
+      and
+    not $suppress_identity_insert
+  ) {
     $sql .= "\nSELECT SCOPE_IDENTITY()";
   }
 
