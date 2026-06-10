@@ -1,0 +1,29 @@
+---
+class: standard
+completed: 2026-06-10
+created: 2026-06-10T01:51:45Z
+id: 2
+priority: medium
+status: done
+title: Port MigrationsTest::Schema::EventSmallDT to DBIO::Test::Schema so t/30-datetime-mssql.t
+  works
+updated: 2026-06-10T01:51:45Z
+---
+
+[task]
+title: Port MigrationsTest::Schema::EventSmallDT to DBIO::Test::Schema so t/30-datetime-mssql.t works
+description: 
+t/30-datetime-mssql.t in dbio-mssql calls `DBIO::Test::Schema->load_classes('EventSmallDT')` but the EventSmallDT schema class only exists at `dbio/t/lib/MigrationsTest/Schema/EventSmallDT.pm`. This causes a hard test failure: "Can't locate DBIO/Test/Schema/EventSmallDT.pm in @INC".
+
+The fix is to port MigrationsTest::Schema::EventSmallDT to DBIO::Test::Schema::EventSmallDT, following the same pattern as the recent ArtistGUID port.
+
+Source file: /storage/raid/home/getty/dev/perl/dbio-dev/dbio/t/lib/MigrationsTest/Schema/EventSmallDT.pm
+
+The ported class should:
+- Live at lib/DBIO/Test/Schema/EventSmallDT.pm
+- Inherit from DBIO::Test::BaseResult
+- Define the same columns and relationships as the source
+
+The class must also be registered in DBIO::Test::Schema's load_classes() call.
+
+This was discovered while running live integration tests against MSSQL 2022 in k3s (dbio-mssql). Other tests in the same suite pass after the recent fixes, but t/30 fails at load_classes time.
