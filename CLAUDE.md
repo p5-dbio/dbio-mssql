@@ -132,8 +132,8 @@ cleanly (otherwise the iteration continues to `dbh_do` and exits 255).
 | t/40-sqlmaker-mssql-torture.t | PASS | offline |
 | t/50-diff.t | PASS | offline |
 | t/52-introspect-contract.t | PASS | offline |
-| t/11-mssql-odbc.t | 124/125 | GUID `auto_nextval` fail (dbio core ArtistGUID fix via karr #1) |
-| t/21-mssql-odbc-core.t | 124/125 | same |
-| t/30-datetime-mssql.t | FAIL | `DBIO::Test::Schema::EventSmallDT` missing (dbio core port via karr #2) |
-| t/10-mssql.t | SKIP | needs DBD::Sybase |
-| t/20-mssql-core.t | SKIP | needs DBD::Sybase |
+| t/11-mssql-odbc.t | PASS | 125/125 |
+| t/21-mssql-odbc-core.t | PASS | 125/125 |
+| t/30-datetime-mssql.t | PASS | 1 skipped (no DBD::Sybase `syb_date_fmt`) |
+| t/10-mssql.t | SKIP | needs DBD::Sybase (karr #3) |
+| t/20-mssql-core.t | SKIP | needs DBD::Sybase (karr #3) |
