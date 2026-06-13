@@ -1,0 +1,14 @@
+---
+class: standard
+created: 2026-06-13T02:28:37Z
+id: 5
+priority: high
+status: backlog
+tags:
+- from:dbio
+- style-audit
+title: Fix missing 1; in Storage/Sybase.pm; migrate 2 DateTime format classes to DBIO::Storage::DateTimeFormat
+updated: 2026-06-13T02:28:37Z
+---
+
+Style-Audit 2026-06-12: (1) lib/DBIO/MSSQL/Storage/Sybase.pm ended in POD without a closing '1;' — module returned the POD value, fragile load. (2) Two hand-rolled Strptime format classes migrated to DBIO::Storage::DateTimeFormat subclasses (core cd051095). DateTime::Format adds a third 'smalldatetime' channel via the base _strptime_for helper. No preferred_format_class (DateTime::Format::MSSQL is mdy-based, not round-trip equivalent with our patterns / ISO_strict). cpanfile drops direct Strptime requires. Added offline t/31-datetime-format.t.
