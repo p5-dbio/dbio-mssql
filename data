@@ -1,0 +1,15 @@
+---
+class: standard
+created: 2026-06-14T02:56:11Z
+id: 6
+priority: '2'
+status: done
+tags:
+- from:dbio
+- in-dir-verify
+title: 'test: 00-load.t missed 10 sub-modules (Diff::*, Introspect::*, DateTime::Format)'
+updated: 2026-06-14T02:56:11Z
+---
+
+10 shipped modules were absent from t/00-load.t: Diff::{Column,ForeignKey,Index,Table}, Introspect::{Columns,ForeignKeys,Indexes,Tables}, Storage::DateTime::Format, Storage::Sybase::DateTime::Format. Context-poor audit pass did not add them when adding the DateTime format classes. Fixed in commit 7856a1f.
+Fixed in commit 7856a1f. All 20 modules now in 00-load.t, 108/108 pass.
